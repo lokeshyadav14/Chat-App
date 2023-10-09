@@ -2,13 +2,19 @@ from flask import Flask, request, render_template, redirect, url_for, session
 from flask_socketio import SocketIO, join_room, leave_room, send
 import random
 import string
-import time
 from datetime import datetime
 from typing import List
+import redis
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'mysecretkey123'
 socketio = SocketIO(app)
+
+# Initialize Redis connection
+redis_host = 'your_redis_host'
+redis_port = 6379  # Default Redis port
+redis_db = 0       # Specify the appropriate Redis database number
+redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=redis_db)
 
 def generate_room_code(length: int, existing_codes: List[str]) -> str:
     while True:
@@ -55,7 +61,11 @@ def room():
     name = session.get('name')
     if name is None or room is None or room not in rooms:
         return redirect(url_for('home'))
-    messages = rooms[room]['messages']
+
+    # Retrieve messages from Redis
+    messages = redis_client.lrange(room, 0, -1)
+    messages = [message.decode('utf-8') for message in messages]
+
     return render_template('room.html', room=room, user=name, messages=messages)
 
 # Build the SocketIO event handlers
@@ -80,16 +90,21 @@ def handle_message(payload):
     name = session.get('name')
     if room not in rooms:
         return
+
     # Get the current timestamp
-    timestamp = time.time()
-    # Format the timestamp as a string
-    formatted_timestamp = datetime.fromtimestamp(timestamp).strftime('%d-%m-%Y %H:%M')
+    timestamp = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
     message = {
         "sender": name,
         "message": payload["message"],
-        "timestamp": formatted_timestamp
+        "timestamp": timestamp
     }
-    rooms[room]['messages'].append(message)  # Append the message to the room's message list
+
+    # Append the message to the room's message list
+    rooms[room]['messages'].append(message)
+
+    # Store the message in Redis
+    redis_client.rpush(room, message)
+
     send(message, to=room)
 
 @socketio.on('disconnect')
