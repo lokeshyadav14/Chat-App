@@ -4,17 +4,16 @@ import random
 import string
 from datetime import datetime
 from typing import List
-import redis
+from pymongo import MongoClient
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'mysecretkey123'
 socketio = SocketIO(app)
 
-# Initialize Redis connection
-redis_host = 'redis://red-ckhrma4ldqrs739v4a5g:6379'
-redis_port = 6379  # Default Redis port
-redis_db = 0       # Specify the appropriate Redis database number
-redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=redis_db)
+# Initialize MongoDB connection
+mongo_client = MongoClient("mongodb://your-mongodb-uri")
+db = mongo_client.get_database("chat_app")  # Use your database name
+messages_collection = db.get_collection("messages")  # Create a collection for messages
 
 def generate_room_code(length: int, existing_codes: List[str]) -> str:
     while True:
@@ -22,9 +21,6 @@ def generate_room_code(length: int, existing_codes: List[str]) -> str:
         code = ''.join(code_chars)
         if code not in existing_codes:
             return code
-
-# A mock database to persist data (chat messages)
-rooms = {}
 
 # Build the routes
 @app.route('/', methods=['GET', 'POST'])
@@ -37,16 +33,18 @@ def home():
         if not name:
             return render_template('home.html', error='Name is required', code=code)
         if create != False:
-            room_code = generate_room_code(6, list(rooms.keys()))
+            room_code = generate_room_code(6, [room['code'] for room in messages_collection.find()])
             new_room = {
+                'code': room_code,
                 'members': 0,
                 'messages': []
             }
-            rooms[room_code] = new_room
+            messages_collection.insert_one(new_room)
         if join != False:
             if not code:
                 return render_template('home.html', error="Please enter a room code to enter a chat room", name=name)
-            if code not in rooms:
+            existing_room = messages_collection.find_one({'code': code})
+            if not existing_room:
                 return render_template('home.html', error="Room code invalid", name=name)
             room_code = code
         session['room'] = room_code
@@ -57,38 +55,35 @@ def home():
 
 @app.route('/room')
 def room():
-    room = session.get('room')
+    room_code = session.get('room')
     name = session.get('name')
-    if name is None or room is None or room not in rooms:
+    if name is None or room_code is None:
         return redirect(url_for('home'))
 
-    # Retrieve messages from Redis
-    messages = redis_client.lrange(room, 0, -1)
-    messages = [message.decode('utf-8') for message in messages]
+    # Retrieve messages from MongoDB
+    room = messages_collection.find_one({'code': room_code})
+    messages = room['messages']
 
-    return render_template('room.html', room=room, user=name, messages=messages)
+    return render_template('room.html', room=room_code, user=name, messages=messages)
 
 # Build the SocketIO event handlers
 @socketio.on('connect')
 def handle_connect():
     name = session.get('name')
-    room = session.get('room')
-    if name is None or room is None:
+    room_code = session.get('room')
+    if name is None or room_code is None:
         return
-    if room not in rooms:
-        leave_room(room)
-    join_room(room)
+    join_room(room_code)
     send({
         "sender": "",
         "message": f"{name} has entered the chat"
-    }, to=room)
-    rooms[room]['members'] += 1
+    }, to=room_code)
 
 @socketio.on('message')
 def handle_message(payload):
-    room = session.get('room')
+    room_code = session.get('room')
     name = session.get('name')
-    if room not in rooms:
+    if room_code is None:
         return
 
     # Get the current timestamp
@@ -100,26 +95,20 @@ def handle_message(payload):
     }
 
     # Append the message to the room's message list
-    rooms[room]['messages'].append(message)
+    messages_collection.update_one({'code': room_code}, {'$push': {'messages': message}})
 
-    # Store the message in Redis
-    redis_client.rpush(room, message)
-
-    send(message, to=room)
+    send(message, to=room_code)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    room = session.get('room')
+    room_code = session.get('room')
     name = session.get('name')
-    leave_room(room)
-    if room in rooms:
-        rooms[room]['members'] -= 1
-        if rooms[room]['members'] <= 0:
-            del rooms[room]
+    if room_code:
+        leave_room(room_code)
         send({
             'sender': "",
             'message': f"{name} has left the chat"
-        }, to=room)
+        }, to=room_code)
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
