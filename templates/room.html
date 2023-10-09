@@ -28,7 +28,7 @@
         var user = localStorage.getItem('user') || "{{ user }}"; // Use localStorage value if available
         var room = "{{ room }}"; // Retrieve the chat room from the server-side template
 
-        var socketio = io();
+        var socketio = io('https://chat-app-by-lokesh.onrender.com');
         // Connect to the chat room
         socketio.emit('join', { user: user, room: room });
         // Listen for messages from the server
