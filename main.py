@@ -11,7 +11,7 @@ app.config['SECRET_KEY'] = 'mysecretkey123'
 socketio = SocketIO(app)
 
 # Initialize MongoDB connection
-mongo_client = MongoClient("mongodb://your-mongodb-uri")
+mongo_client = MongoClient("mongodb+srv://lokeshyadav0412:lokeshyadav0412@cluster0.y28ogfm.mongodb.net/?retryWrites=true&w=majority")
 db = mongo_client.get_database("chat_app")  # Use your database name
 messages_collection = db.get_collection("messages")  # Create a collection for messages
 
