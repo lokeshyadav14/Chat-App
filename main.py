@@ -4,16 +4,17 @@ import random
 import string
 from datetime import datetime
 from typing import List
-from pymongo import MongoClient
+import pymongo
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'mysecretkey123'
 socketio = SocketIO(app)
 
 # Initialize MongoDB connection
-mongo_client = MongoClient("mongodb+srv://lokeshyadav0412:lokeshyadav0412@cluster0.y28ogfm.mongodb.net/?retryWrites=true&w=majority")
-db = mongo_client.get_database("chat_app")  # Use your database name
-messages_collection = db.get_collection("messages")  # Create a collection for messages
+mongo_uri = 'mongodb+srv://lokeshyadav0412:lokeshyadav0412@cluster0.y28ogfm.mongodb.net/?retryWrites=true&w=majority'
+mongo_client = pymongo.MongoClient(mongo_uri)
+db = mongo_client['chat_app']
+messages_collection = db['messages']
 
 def generate_room_code(length: int, existing_codes: List[str]) -> str:
     while True:
@@ -43,10 +44,10 @@ def home():
         if join != False:
             if not code:
                 return render_template('home.html', error="Please enter a room code to enter a chat room", name=name)
-            existing_room = messages_collection.find_one({'code': code})
-            if not existing_room:
+            room_data = messages_collection.find_one({'code': code})
+            if not room_data:
                 return render_template('home.html', error="Room code invalid", name=name)
-            room_code = code
+            room_code = room_data['code']
         session['room'] = room_code
         session['name'] = name
         return redirect(url_for('room'))
@@ -55,35 +56,38 @@ def home():
 
 @app.route('/room')
 def room():
-    room_code = session.get('room')
+    room = session.get('room')
     name = session.get('name')
-    if name is None or room_code is None:
+    if name is None or room is None:
         return redirect(url_for('home'))
 
     # Retrieve messages from MongoDB
-    room = messages_collection.find_one({'code': room_code})
-    messages = room['messages']
+    room_data = messages_collection.find_one({'code': room})
+    if room_data:
+        messages = room_data.get('messages', [])
+    else:
+        messages = []
 
-    return render_template('room.html', room=room_code, user=name, messages=messages)
+    return render_template('room.html', room=room, user=name, messages=messages)
 
 # Build the SocketIO event handlers
 @socketio.on('connect')
 def handle_connect():
     name = session.get('name')
-    room_code = session.get('room')
-    if name is None or room_code is None:
+    room = session.get('room')
+    if name is None or room is None:
         return
-    join_room(room_code)
+    join_room(room)
     send({
         "sender": "",
         "message": f"{name} has entered the chat"
-    }, to=room_code)
+    }, to=room)
 
 @socketio.on('message')
 def handle_message(payload):
-    room_code = session.get('room')
+    room = session.get('room')
     name = session.get('name')
-    if room_code is None:
+    if room is None:
         return
 
     # Get the current timestamp
@@ -95,20 +99,21 @@ def handle_message(payload):
     }
 
     # Append the message to the room's message list
-    messages_collection.update_one({'code': room_code}, {'$push': {'messages': message}})
+    messages_collection.update_one({'code': room}, {'$push': {'messages': message}})
 
-    send(message, to=room_code)
+    send(message, to=room)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    room_code = session.get('room')
+    room = session.get('room')
     name = session.get('name')
-    if room_code:
-        leave_room(room_code)
-        send({
-            'sender': "",
-            'message': f"{name} has left the chat"
-        }, to=room_code)
+    if room is None:
+        return
+    leave_room(room)
+    send({
+        'sender': "",
+        'message': f"{name} has left the chat"
+    }, to=room)
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
