@@ -4,12 +4,13 @@ import random
 import string
 import time
 from datetime import datetime
+from typing import List
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'mysecretkey123'
 socketio = SocketIO(app)
 
-def generate_room_code(length: int, existing_codes: list[str]) -> str:
+def generate_room_code(length: int, existing_codes: List[str]) -> str:
     while True:
         code_chars = [random.choice(string.ascii_letters) for _ in range(length)]
         code = ''.join(code_chars)
