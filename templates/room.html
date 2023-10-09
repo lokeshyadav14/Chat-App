@@ -22,62 +22,61 @@
             <button type="submit" id="send-btn" onclick="sendMessage()"> Send </button>
         </div>
     </div>
-
-    <script type="text/javascript">
-        // Retrieve the user's identity from localStorage or the server-side template
-        var user = localStorage.getItem('user') || "{{ user }}"; // Use localStorage value if available
-        var room = "{{ room }}"; // Retrieve the chat room from the server-side template
-
-        var socketio = io('https://chat-app-by-lokesh.onrender.com');
-        // Connect to the chat room
-        socketio.emit('join', { user: user, room: room });
-        // Listen for messages from the server
-        socketio.on('message', function (message) { createChatItem(message) });
-
-        function createChatItem(userMessage) {
-            var message = userMessage.message;
-            var timestamp = userMessage.timestamp;
-            var sender = userMessage.sender;
-            var messages = document.getElementById('messages');
-            if (sender === "") {
-                content = `<p class='member-activity'> ${message} </p>`;
-            }
-            else {
-                var senderIsUser = user === sender; // Check if the message sender is the current user
-                var content = `
-                    <li class='message-item ${senderIsUser ? 'self-message-item' : 'peer-message-item'}'>
-                        <p>${message}</p>
-                        <div class='message-info ${senderIsUser ? 'self-message-info' : 'peer-message-info'}'>
-                            <small class='message-time'> ${timestamp ? timestamp : ''} </small>
-                            <small class='user-name-text'> ${sender} </small> 
-                        </div>
-                    </li>
-                `;
-            }
-            messages.innerHTML += content;
-            scrollToBottom(); // Scroll to the latest message
-        }
-
-        // Send a message to the server
-        function sendMessage() {
-            var msgInput = document.getElementById('message-input');
-            if (msgInput.value === "") return;
-            var msg = msgInput.value;
-            socketio.emit('message', { user: user, room: room, message: msg }); // Include user and room in the message
-            msgInput.value = "";
-        }
-
-        // Scroll to the bottom of the messages container
-        function scrollToBottom() {
-            var messagesContainer = document.getElementById('msgs-container');
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-    </script>
-
-    {% for message in messages %}
-    <script type="text/javascript">
-        createChatItem({{message|safe}});
-    </script>
-    {% endfor %}
 </div>
+
+<script type="text/javascript">
+    // Retrieve the user's identity from localStorage or the server-side template
+    var user = localStorage.getItem('user') || "{{ user }}"; // Use localStorage value if available
+    var room = "{{ room }}"; // Retrieve the chat room from the server-side template
+
+    var socketio = io();
+    // Connect to the chat room
+    socketio.emit('join', { user: user, room: room });
+    // Listen for messages from the server
+    socketio.on('message', function (message) { createChatItem(message) });
+
+    function createChatItem(userMessage) {
+        var message = userMessage.message;
+        var timestamp = userMessage.timestamp;
+        var sender = userMessage.sender;
+        var messages = document.getElementById('messages');
+        if (sender === "") {
+            content = `<p class='member-activity'> ${message} </p>`;
+        } else {
+            var senderIsUser = user === sender; // Check if the message sender is the current user
+            var content = `
+                <li class='message-item ${senderIsUser ? 'self-message-item' : 'peer-message-item'}'>
+                    <p>${message}</p>
+                    <div class='message-info ${senderIsUser ? 'self-message-info' : 'peer-message-info'}'>
+                        <small class='message-time'> ${timestamp ? timestamp : ''} </small>
+                        <small class='user-name-text'> ${sender} </small> 
+                    </div>
+                </li>
+            `;
+        }
+        messages.innerHTML += content;
+        scrollToBottom(); // Scroll to the latest message
+    }
+
+    // Send a message to the server
+    function sendMessage() {
+        var msgInput = document.getElementById('message-input');
+        if (msgInput.value === "") return;
+        var msg = msgInput.value;
+        socketio.emit('message', { user: user, room: room, message: msg }); // Include user and room in the message
+        msgInput.value = "";
+    }
+
+    // Scroll to the bottom of the messages container
+    function scrollToBottom() {
+        var messagesContainer = document.getElementById('msgs-container');
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+</script>
+
+{% for message in messages %}
+<script type="text/javascript">
+    createChatItem({{message|safe}});
+</script>
+{% endfor %}
 {% endblock %}
