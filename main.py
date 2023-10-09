@@ -8,7 +8,7 @@ import pymongo
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'mysecretkey123'
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize MongoDB connection
 mongo_uri = 'mongodb+srv://lokeshyadav0412:lokeshyadav0412@cluster0.y28ogfm.mongodb.net/?retryWrites=true&w=majority'
