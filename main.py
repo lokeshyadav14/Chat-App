@@ -11,7 +11,7 @@ app.config['SECRET_KEY'] = 'mysecretkey123'
 socketio = SocketIO(app)
 
 # Initialize Redis connection
-redis_host = 'your_redis_host'
+redis_host = 'redis://red-ckhrma4ldqrs739v4a5g:6379'
 redis_port = 6379  # Default Redis port
 redis_db = 0       # Specify the appropriate Redis database number
 redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=redis_db)
