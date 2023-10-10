@@ -1,5 +1,5 @@
 gunicorn
 Flask
 Flask-SocketIO
-eventlet
+gevent
 pymongo
